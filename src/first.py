@@ -1,0 +1,46 @@
+import asyncio
+import logging
+import traceback
+
+from aiogram import types
+from bot import dp
+from classes import ERRORS, IGNORE
+from classes.Errors import CommandNotFound, UserNotAdmin
+
+
+@dp.errors_handler()
+async def errors(update: types.Update, error: Exception):
+
+    async def delete(*msgs: types.Message, sleep: int = 2):
+        await asyncio.sleep(sleep)
+        for msg in msgs:
+            try:
+                await msg.delete()
+            except:
+                pass
+
+    if update.message:
+        msg = update.message
+    elif update.callback_query:
+        msg = update.callback_query.message
+
+    errorText: str
+    if error.__class__ in ERRORS:
+        errorText = error.args[0]
+        errorMsg = await msg.answer(errorText)
+        if error.__class__ == UserNotAdmin:
+            await delete(errorMsg, sleep=3)
+        else:
+            await delete(msg, errorMsg, sleep=3)
+    elif error.__class__ in IGNORE:
+        pass
+        # logging.info(f"Error skipped {error.__class__.__name__}")
+    else:
+        txt = f"{traceback.format_exc()}" + \
+              f"User: {msg.from_user.mention}\n" + \
+              f"Message: {msg.text} \n"
+        logging.error(txt)
+        # for id in config.owners:
+        #     await bot.send_message(id, txt)
+
+    return True
