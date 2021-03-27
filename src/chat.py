@@ -1,3 +1,4 @@
+import asyncio
 from typing import List
 from aiogram import types
 from bot import bot, dp
@@ -58,12 +59,16 @@ async def new_member(msg: types.Message):
 @dp.message_handler(lambda msg: chat(msg) and in_pull(msg), content_types=types.ContentType.LEFT_CHAT_MEMBER)
 async def leave_member(msg: types.Message):
     await msg.delete()
+    result = False
     for data in MessageData.storage.values():
         user: types.User = data["user"]
         if user.id == msg.left_chat_member.id:
-            pull.remove(user)
-            await msg.chat.delete_message(data.id)
-            await MessageData.remove_data(data.id)
+            result = True
+            break
+
+    if result:
+        pull.remove(user)
+        await MessageData.remove_data(data.id)
 
 
 @dp.callback_query_handler(lambda msg: msg.data in ["accept", "decline"])
@@ -82,10 +87,30 @@ async def new_member_buttons(callback: types.CallbackQuery):
                                              can_send_other_messages=True,
                                              can_add_web_page_previews=True
                                              )
+        await callback.message.edit_text(text.chat.accept.format(
+            user_id=user.id,
+            admin_id=callback.from_user.id,
+            admin_name=callback.from_user.full_name
+        ))
     else:
-        await callback.message.chat.kick(user.id)
+        await callback.message.edit_text(text.chat.decline_last_message.format(user.id))
+        await callback.message.chat.restrict(user.id,
+                                             can_send_messages=True,
+                                             can_send_media_messages=True,
+                                             can_send_other_messages=True,
+                                             can_add_web_page_previews=True
+                                             )
 
-    await callback.message.delete()
+        await asyncio.sleep(10)
+
+        await callback.message.chat.kick(user.id)
+        await callback.message.edit_text(text.chat.decline.format(
+            user_id=user.id,
+            user_name=user.full_name,
+            admin_id=callback.from_user.id,
+            admin_name=callback.from_user.full_name
+        ))
+
 
 # @dp.message_handler(commands=["leave"])
 # async def leave(msg: types.Message):
